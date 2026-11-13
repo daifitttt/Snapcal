@@ -1,5 +1,5 @@
 // Snap Calories service worker: lets the app open even without internet.
-const CACHE = "snapcal-v2";
+const CACHE = "snapcal-v4";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {

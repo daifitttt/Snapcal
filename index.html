@@ -188,10 +188,23 @@
       <div class="err" id="scanErr"></div>
       <div class="hint" id="scanStatus"></div>
 
+      <div class="product" id="teach" style="display:none">
+        <div class="pname">Teach the app this product</div>
+        <div class="hint" style="margin-top:2px">Do it once — next time you scan <b id="teachCode"></b> it'll know it.</div>
+        <div class="row"><button class="btn" id="teachPhoto">📸 Snap the product</button></div>
+        <div class="hint" style="text-align:center">or type it in yourself:</div>
+        <input type="text" id="teachName" placeholder="Name, e.g. Nocco BCAA Caribbean (330 ml)" style="margin-top:8px">
+        <div class="row"><input type="number" id="teachKcal" min="0" inputmode="numeric" placeholder="kcal for the whole thing"></div>
+        <div class="catpick" id="teachCats"></div>
+        <div class="row"><button class="btn ghost" id="teachSave">Save &amp; add to log</button></div>
+        <div class="hint">Tip: the kcal is on the nutrition label. If it says “per 100 ml”, multiply by the size ÷ 100.</div>
+      </div>
+
       <div class="product" id="product" style="display:none">
         <div class="pname" id="pName"></div>
         <div class="pbrand" id="pBrand"></div>
         <div class="per" id="pPer"></div>
+        <div class="hint" id="pSrc" style="margin-top:4px"></div>
         <div class="catpick" id="pAmounts"></div>
         <div class="row" id="pCustomRow" style="display:none">
           <input type="number" id="pCustom" min="0" inputmode="decimal" placeholder="Amount">
@@ -479,23 +492,32 @@ Reply with ONLY a JSON object, no markdown, in exactly this shape:
 {"items":[{"name":"short name with portion, e.g. 'Coca-Cola can (330 ml)'","kcal":139,"category":"drink"}],"note":"one short sentence on assumptions or confidence"}
 If there is no food or drink at all, reply {"items":[],"note":"No food or drink found."}`;
 
-  async function callClaude(content, maxTokens = 800){
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content }] }),
-    });
-    let data = null; try{ data = await res.json(); }catch{}
-    if (!res.ok){
-      const msg = (data && data.error && data.error.message) || "";
-      const err = new Error(msg); err.status = res.status; throw err;
+  async function callClaude(content, maxTokens = 800, tools = null){
+    const messages = [{ role: "user", content }];
+    let text = "";
+    for (let round = 0; round < 3; round++){            // web search can pause a long turn; continue it
+      const body = { model, max_tokens: maxTokens, messages };
+      if (tools) body.tools = tools;
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(body),
+      });
+      let data = null; try{ data = await res.json(); }catch{}
+      if (!res.ok){
+        const msg = (data && data.error && data.error.message) || "";
+        const err = new Error(msg); err.status = res.status; throw err;
+      }
+      text = (data.content || []).filter(b=>b.type==="text").map(b=>b.text).join("");
+      if (data.stop_reason !== "pause_turn") break;
+      messages.push({ role: "assistant", content: data.content });
     }
-    return (data.content || []).filter(b=>b.type==="text").map(b=>b.text).join("");
+    return text;
   }
 
   function friendlyError(e){
@@ -563,6 +585,12 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
   $("discard").onclick = hideResult;
   $("saveResult").onclick = ()=>{
     if (!pending) return;
+    if (photoTeachCode && pending.source === "photo"){
+      const its = pending.items;
+      rememberProduct(photoTeachCode, its.map(i=>i.name).join(" + "), its.reduce((t,i)=>t+(+i.kcal||0),0), its[0].category);
+      photoTeachCode = null; $("teach").style.display = "none"; $("scanErr").textContent = "";
+      $("photoNote").placeholder = "Optional hint: “large oat latte”, “ate half”…";
+    }
     addEntries(pending.items, pending.source);
     hideResult();
     photoB64 = null; $("preview").style.display="none"; $("preview").removeAttribute("src");
@@ -589,9 +617,23 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
   }
   function makeReader(Z, tryHarder){
     const hints = new Map();
-    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]);
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.QR_CODE]);
+    // TRY_HARDER also tries the picture turned 90°, so upright cans/bottles (vertical barcodes) work.
     if (tryHarder) hints.set(Z.DecodeHintType.TRY_HARDER, true);
-    return new Z.BrowserMultiFormatReader(hints, 250);
+    return new Z.BrowserMultiFormatReader(hints, 200);
+  }
+  // Turn whatever was scanned into a product number. Returns null for QR codes without one.
+  function toProductCode(text){
+    text = String(text || "").trim();
+    if (/^\d{8,14}$/.test(text)) return text.length === 14 && text[0] === "0" ? text.slice(1) : text;
+    const m = text.match(/\/01\/(\d{14})/) || text.match(/\(01\)(\d{14})/) || text.match(/^01(\d{14})/);  // GS1 QR codes
+    if (m) return m[1][0] === "0" ? m[1].slice(1) : m[1];
+    return null;
+  }
+  function handleScan(text){
+    const code = toProductCode(text);
+    if (code) { lookup(code); return; }
+    $("scanErr").textContent = "That's a QR code without a product number (usually a website or promo). Scan the striped barcode instead.";
   }
 
   async function startScan(){
@@ -599,15 +641,15 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
     try{
       const Z = await loadZXing();
       stopScan();
-      reader = makeReader(Z, false);
+      reader = makeReader(Z, true);
       $("scanBox").style.display = "block"; $("startScan").style.display = "none";
       scanning = true;
       await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+        { video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
         $("scanVideo"),
-        (result) => { if (result && scanning){ const code = result.getText(); stopScan(); lookup(code); } }
+        (result) => { if (result && scanning){ const text = result.getText(); stopScan(); handleScan(text); } }
       );
-      $("scanStatus").textContent = "Point at the barcode — hold it steady inside the box.";
+      $("scanStatus").textContent = "Hold the barcode 15–20 cm away, fill the box, avoid shiny glare. Upright cans work too.";
     }catch(e){
       stopScan();
       const name = e && e.name;
@@ -638,7 +680,8 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
       const url = URL.createObjectURL(f);
       try{
         const r = await makeReader(Z, true).decodeFromImageUrl(url);
-        lookup(r.getText());
+        $("scanStatus").textContent = "";
+        handleScan(r.getText());
       } finally { URL.revokeObjectURL(url); }
     }catch{
       $("scanStatus").textContent = "";
@@ -656,10 +699,43 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
     return "meal";
   }
 
+  async function webLookup(code){
+    $("scanStatus").textContent = `Not in the food database — searching the web for ${code}…`;
+    const prompt = `Search the web for the food or drink product with barcode (EAN/GTIN) ${code}. Find its exact name, brand, package size and energy in kcal per 100 g or per 100 ml (from a nutrition table on a shop, brand or database page). The barcode prefix 73 means it is likely sold in Sweden, so Swedish shops (e.g. ICA, Willys, Coop, Mathem) are good sources.
+Only report a product if a source clearly links it to this exact barcode. If you find the product but no nutrition values, give your best estimate from similar products and set "estimated": true.
+Category must be one of "drink", "candy", "snack", "meal".
+Reply with ONLY a JSON object, no other text:
+{"found":true,"name":"product name","brand":"brand","size_amount":330,"unit":"ml","kcal_per_100":12,"category":"drink","estimated":false}
+or {"found":false} if you cannot identify it.`;
+    try{
+      const text = await callClaude([{ type:"text", text: prompt }], 1500,
+        [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }]);
+      const m = text.match(/\{[^{}]*"found"[^{}]*\}/);
+      if (!m) return null;
+      const o = JSON.parse(m[0]);
+      if (!o.found || !(+o.kcal_per_100 >= 0) || !o.name) return null;
+      const unit = /ml|l/i.test(o.unit || "") ? "ml" : "g";
+      const size = +o.size_amount || null;
+      return {
+        code, name: String(o.name).trim(), brand: String(o.brand || "").trim(),
+        k100: Math.round(+o.kcal_per_100 * 10) / 10, kServ: null, servQty: null, servLabel: "",
+        packQty: size, packLabel: size ? `${size} ${unit}` : "", unit,
+        category: CATS[o.category] ? o.category : "meal",
+        web: true, estimated: !!o.estimated,
+      };
+    }catch(e){
+      if (e && e.status === 400 && /web search/i.test(e.message || "")) {
+        $("scanErr").textContent = "Web search is turned off for your API account (console → Settings → Privacy).";
+      }
+      return null;
+    }
+  }
+
   async function lookup(code){
     code = String(code).replace(/\D/g,"");
     $("codeIn").value = code; $("scanErr").textContent = "";
     $("product").style.display = "none";
+    $("teach").style.display = "none";
     let info = productCache[code];
     if (!info){
       $("scanStatus").textContent = `Looking up ${code}…`;
@@ -669,9 +745,18 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
         const data = await res.json().catch(()=>null);
         if (!data || data.status !== 1 || !data.product){
           $("scanStatus").textContent = "";
-          $("scanErr").textContent = `Product ${code} isn't in the food database yet. Try a photo of the food or the nutrition label instead.`;
-          return;
+          const found = apiKey ? await webLookup(code) : null;
+          if (found){ info = found; }
+          else {
+            $("scanStatus").textContent = "";
+            if (!$("scanErr").textContent) $("scanErr").textContent = apiKey
+              ? `Couldn't find product ${code} anywhere online.`
+              : `Product ${code} isn't in the food database yet. (Add your API key in ⚙️ and the app will search the web for it.)`;
+            showTeach(code);
+            return;
+          }
         }
+        if (!info){
         const p = data.product, n = p.nutriments || {};
         let k100 = +n["energy-kcal_100g"];
         if (!(k100 >= 0) || n["energy-kcal_100g"] === undefined){
@@ -694,9 +779,15 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
           category: guessCategory(p.categories_tags),
         };
         if (info.k100 === null && info.kServ === null){
-          $("scanStatus").textContent = "";
-          $("scanErr").textContent = `Found “${info.name}”, but it has no calorie info. Snap the nutrition label in the Photo tab instead.`;
-          return;
+          const found = apiKey ? await webLookup(code) : null;
+          if (found) info = found;
+          else {
+            $("scanStatus").textContent = "";
+            $("scanErr").textContent = `Found “${info.name}”, but it has no calorie info.`;
+            showTeach(code); $("teachName").value = info.name;
+            return;
+          }
+        }
         }
         productCache[code] = info; LS.set("snapcal-products", productCache);
       }catch{
@@ -717,6 +808,7 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
     $("pName").textContent = info.name;
     $("pBrand").textContent = [info.brand, info.packLabel].filter(Boolean).join(" · ");
     $("pPer").textContent = info.k100 !== null ? `${Math.round(info.k100)} kcal per 100 ${info.unit}` : `${info.kServ} kcal per serving`;
+    $("pSrc").textContent = info.web ? (info.estimated ? "🌐 Found online — calories are an estimate, double-check the label." : "🌐 Found online by AI — double-check against the label.") : info.mine ? "💾 Your saved product" : "";
     const opts = [];
     if (info.servQty || info.kServ !== null) opts.push({kind:"serving", label:`1 serving${info.servLabel?` (${info.servLabel})`:""}`});
     if (info.packQty && info.k100 !== null) opts.push({kind:"pack", label:`Whole pack (${info.packQty} ${info.unit})`});
@@ -765,7 +857,7 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
   $("pAdd").onclick = ()=>{
     if (!product) return;
     if (amount.kind === "custom" && !(+$("pCustom").value > 0)) { $("pCustom").focus(); return; }
-    const name = `${product.brand && !product.name.toLowerCase().includes(product.brand.toLowerCase()) ? product.brand+" " : ""}${product.name} (${amountText()})`;
+    const name = product.mine ? product.name : `${product.brand && !product.name.toLowerCase().includes(product.brand.toLowerCase()) ? product.brand+" " : ""}${product.name} (${amountText()})`;
     addEntries([{ name, kcal: productKcal(), category: product.category }], "barcode");
     $("product").style.display = "none"; product = null;
     $("scanStatus").textContent = "✓ Added to your log!";
@@ -784,6 +876,50 @@ If there is no food or drink at all, reply {"items":[],"note":"No food or drink 
     });
   }
   renderRecent();
+
+  // ---------- teach unknown products ----------
+  let teachCode = null, teachCat = "drink";
+  function showTeach(code){
+    teachCode = code; $("teachCode").textContent = code;
+    $("teachName").value = ""; $("teachKcal").value = "";
+    renderTeachCats();
+    $("teach").style.display = "block";
+    $("teach").scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+  function renderTeachCats(){
+    $("teachCats").innerHTML = "";
+    Object.keys(CATS).forEach(c=>{
+      const b = document.createElement("button"); b.className = "chip" + (c===teachCat?" on":"");
+      b.textContent = CATS[c].emoji+" "+CATS[c].label; b.onclick = ()=>{ teachCat = c; renderTeachCats(); };
+      $("teachCats").appendChild(b);
+    });
+  }
+  function rememberProduct(code, name, kcal, category){
+    productCache[code] = { code, name, brand:"", k100:null, kServ:Math.round(kcal), servQty:null,
+      servLabel:"your saved amount", packQty:null, packLabel:"", unit:"g", category, mine:true };
+    LS.set("snapcal-products", productCache);
+    recentCodes = [code, ...recentCodes.filter(c=>c!==code)].slice(0,8); LS.set("snapcal-recent", recentCodes);
+    renderRecent();
+  }
+  $("teachSave").onclick = ()=>{
+    const n = $("teachName").value.trim(), raw = $("teachKcal").value, k = +raw;
+    if (!n){ $("teachName").focus(); return; }
+    if (raw === "" || !(k >= 0)){ $("teachKcal").focus(); return; }
+    rememberProduct(teachCode, n, k, teachCat);
+    addEntries([{ name:n, kcal:k, category:teachCat }], "barcode");
+    $("teach").style.display = "none"; $("scanErr").textContent = ""; teachCode = null;
+    $("scanStatus").textContent = "✓ Saved! Next scan of this code works instantly.";
+    window.scrollTo({top:0, behavior:"smooth"});
+  };
+  $("teachPhoto").onclick = ()=>{
+    if (!apiKey){ $("scanErr").textContent = "Photo counting needs your API key (⚙️). You can type it in below instead."; return; }
+    photoTeachCode = teachCode;
+    document.querySelector('.tabs button[data-tab="photo"]').click();
+    $("photoNote").value = "";
+    $("photoNote").placeholder = "Snapping the scanned product — add size if you know it";
+    $("fileIn").click();
+  };
+  let photoTeachCode = null;
 
   // ---------- settings ----------
   function openSettings(){
