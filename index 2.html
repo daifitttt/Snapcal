@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snap Calories</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SnapCal">
+<meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f3ee; --card:#ffffff; --ink:#1d1b18; --muted:#77716a; --line:#e7e1d8;
+    --accent:#ff5a36; --accent-soft:#ffe6df; --danger:#c0392b;
+    --meal:#2f7d5b; --snack:#d98a10; --candy:#d63f8c; --drink:#2b72c9;
+    --radius:18px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#161412; --card:#211e1b; --ink:#f3eee7; --muted:#a39b91; --line:#35302b; --accent-soft:#3a221b; --danger:#ff6b5b;
+      --meal:#4fb486; --snack:#f0a936; --candy:#f06aab; --drink:#5b9cf0; }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--bg)}
+  body{margin:0;color:var(--ink);font-family:Inter,-apple-system,system-ui,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:560px;margin:0 auto;
+    padding:calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+  h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px}
+  header h1{font-size:25px;margin:0;font-weight:800;letter-spacing:-.02em}
+  header h1 span{color:var(--accent)}
+  .hright{display:flex;align-items:center;gap:6px}
+  .iconbtn{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+  .iconbtn:disabled{opacity:.35;cursor:default}
+  .daylabel{font-weight:600;min-width:84px;text-align:center;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  .banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+  .banner button{margin-top:8px}
+  /* summary */
+  .summary{display:flex;gap:16px;align-items:center}
+  .ring{position:relative;width:126px;height:126px;flex:none}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .big{font-family:"Bricolage Grotesque";font-size:29px;font-weight:800;line-height:1}
+  .ring .small{font-size:12px;color:var(--muted)}
+  .stats{flex:1;min-width:0}
+  .stats .left{font-size:14px;color:var(--muted);margin-bottom:8px}
+  .stats .left b{color:var(--ink);font-size:18px}
+  .bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--line);margin-bottom:8px}
+  .bar div{height:100%}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:12.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+  /* tabs */
+  .tabs{display:flex;gap:3px;background:var(--bg);padding:4px;border-radius:14px;margin-bottom:14px}
+  .tabs button{flex:1;border:none;background:none;padding:7px 0 6px;border-radius:10px;font:600 11.5px Inter,system-ui;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tabs button span{font-size:18px;line-height:1}
+  /* scanner */
+  .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:10px}
+  .scanbox video{width:100%;height:100%;object-fit:cover;display:block}
+  .scanbox .frame{position:absolute;left:12%;right:12%;top:30%;bottom:30%;border:3px solid rgba(255,255,255,.9);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+  .scanbox .laser{position:absolute;left:14%;right:14%;top:50%;height:2px;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:laser 1.6s ease-in-out infinite}
+  @keyframes laser{0%,100%{transform:translateY(-38px)}50%{transform:translateY(38px)}}
+  .scanbox .stop{position:absolute;right:10px;top:10px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:999px;padding:6px 12px;font:600 13px Inter,system-ui;cursor:pointer}
+  .product{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .product .pname{font-weight:600;font-size:16px}
+  .product .pbrand{font-size:13px;color:var(--muted)}
+  .product .per{font-size:13px;color:var(--muted);margin-top:4px}
+  .product .pk{font-family:"Bricolage Grotesque";font-size:30px;font-weight:800;margin:10px 0 2px}
+  .recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .linkbtn{background:none;border:none;color:var(--accent);font:inherit;padding:0;cursor:pointer;text-decoration:underline}
+  .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .pane{display:none}.pane.on{display:block}
+  .drop{display:block;border:2px dashed var(--line);border-radius:16px;padding:22px 14px;text-align:center;cursor:pointer}
+  .drop:active{border-color:var(--accent);background:var(--accent-soft)}
+  .drop .ico{font-size:34px}
+  .drop p{margin:6px 0 0;color:var(--muted);font-size:13.5px}
+  .drop strong{display:block;font-size:16px;margin-top:4px}
+  .preview{width:100%;max-height:280px;object-fit:cover;border-radius:14px;margin-top:12px;display:none}
+  textarea,input[type=text],input[type=number],input[type=password],select{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:11px 12px;font:16px Inter,system-ui;outline:none;-webkit-appearance:none;appearance:none}
+  textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+  textarea{min-height:84px;resize:vertical}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:12px;padding:12px 16px;font:600 15px Inter,system-ui;cursor:pointer;background:var(--accent);color:#fff;width:100%}
+  .btn.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:8px;margin-top:10px}
+  .row>*{flex:1}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .catpick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:7px 12px;font:500 13px Inter,system-ui;cursor:pointer}
+  .chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .result{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:none}
+  .ritem{display:grid;grid-template-columns:1fr 84px 30px;gap:8px;align-items:center;margin-bottom:8px}
+  .ritem input{padding:8px 10px;font-size:15px}
+  .ritem .x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px}
+  .ritem .sub{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:-4px}
+  .rtotal{display:flex;justify-content:space-between;font-weight:600;margin:10px 0}
+  .note{font-size:13px;color:var(--muted);background:var(--bg);border-radius:10px;padding:8px 10px;margin-bottom:10px}
+  .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+  .qbtn{display:flex;justify-content:space-between;align-items:center;gap:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:10px;cursor:pointer;font:500 13px Inter,system-ui;text-align:left;transition:border-color .2s,background .2s}
+  .qbtn.flash{border-color:var(--accent);background:var(--accent-soft)}
+  .qbtn b{font-weight:600;color:var(--muted);font-size:12px;white-space:nowrap}
+  .log h2{font-size:18px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+  .log h2 small{font:500 13px Inter,system-ui;color:var(--muted)}
+  .entry{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .entry:first-child{border-top:none}
+  .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+  .entry .info{flex:1;min-width:0}
+  .entry .name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .entry .meta{font-size:12px;color:var(--muted)}
+  .entry .kcal{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .entry .del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:19px;padding:4px 6px}
+  .empty{text-align:center;color:var(--muted);padding:18px 0;font-size:14px}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{color:var(--danger);font-size:13px;margin-top:8px}
+  .ok{color:var(--meal);font-size:13px;margin-top:8px}
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+  .sheet.on{display:flex}
+  .sheet .card{width:100%;max-width:560px;margin:0;border-radius:22px 22px 0 0;max-height:92vh;overflow:auto;
+    padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+  .sheet h3{margin:0 0 12px;font-size:20px;display:flex;justify-content:space-between;align-items:center}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-weight:600;font-size:13.5px;margin-bottom:6px}
+  .divider{height:1px;background:var(--line);margin:16px 0}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Snap<span>.</span>Cal</h1>
+    <div class="hright">
+      <button class="iconbtn" id="prevDay" aria-label="Previous day">‹</button>
+      <div class="daylabel" id="dayLabel">Today</div>
+      <button class="iconbtn" id="nextDay" aria-label="Next day">›</button>
+      <button class="iconbtn" id="openSettings" aria-label="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <div class="banner" id="keyBanner" style="display:none">
+    <b>Add your API key to turn on photo counting.</b><br>
+    Quick add and manual entry already work without it.
+    <button class="btn" id="bannerSettings">Open settings</button>
+  </div>
+
+  <section class="card summary">
+    <div class="ring">
+      <svg width="126" height="126" viewBox="0 0 126 126">
+        <circle cx="63" cy="63" r="53" fill="none" stroke="var(--line)" stroke-width="12"/>
+        <circle id="ringArc" cx="63" cy="63" r="53" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="333.0" stroke-dashoffset="333.0" style="transition:stroke-dashoffset .5s"/>
+      </svg>
+      <div class="center"><div class="big" id="totalBig">0</div><div class="small">kcal eaten</div></div>
+    </div>
+    <div class="stats">
+      <div class="left" id="leftText"></div>
+      <div class="bar" id="catBar"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="tabs">
+      <button data-tab="photo" class="on"><span>📸</span>Photo</button>
+      <button data-tab="scan"><span>🔍</span>Scan</button>
+      <button data-tab="describe"><span>✍️</span>Type</button>
+      <button data-tab="quick"><span>🍬</span>Quick</button>
+      <button data-tab="manual"><span>➕</span>Manual</button>
+    </div>
+
+    <div class="pane" id="pane-scan">
+      <div class="scanbox" id="scanBox" style="display:none">
+        <video id="scanVideo" playsinline muted autoplay></video>
+        <div class="frame"></div><div class="laser"></div>
+        <button class="stop" id="stopScan">Stop</button>
+      </div>
+      <button class="btn" id="startScan">📷 Scan a barcode</button>
+      <div class="row">
+        <input type="text" id="codeIn" placeholder="…or type the barcode number" inputmode="numeric" autocomplete="off">
+        <button class="btn ghost" id="lookupCode" style="flex:0 0 auto;width:auto">Look up</button>
+      </div>
+      <div class="hint">Camera acting up? <label class="linkbtn">Take a photo of the barcode instead<input type="file" id="barcodeImg" accept="image/*" hidden></label></div>
+      <div class="err" id="scanErr"></div>
+      <div class="hint" id="scanStatus"></div>
+
+      <div class="product" id="product" style="display:none">
+        <div class="pname" id="pName"></div>
+        <div class="pbrand" id="pBrand"></div>
+        <div class="per" id="pPer"></div>
+        <div class="catpick" id="pAmounts"></div>
+        <div class="row" id="pCustomRow" style="display:none">
+          <input type="number" id="pCustom" min="0" inputmode="decimal" placeholder="Amount">
+        </div>
+        <div class="pk" id="pKcal">0 kcal</div>
+        <div class="catpick" id="pCats"></div>
+        <div class="row"><button class="btn" id="pAdd">Add to log</button></div>
+        <div class="hint">Data from <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>, a free community food database.</div>
+      </div>
+
+      <div id="recentWrap" style="display:none;margin-top:14px">
+        <div class="hint" style="margin:0">Recently scanned</div>
+        <div class="recent" id="recent"></div>
+      </div>
+    </div>
+
+    <div class="pane on" id="pane-photo">
+      <label class="drop">
+        <div class="ico">📷</div>
+        <strong>Snap or pick a photo</strong>
+        <p>Meals, snacks, candy, drinks — anything.</p>
+        <input type="file" id="fileIn" accept="image/*" hidden>
+      </label>
+      <img class="preview" id="preview" alt="Your food photo">
+      <input type="text" id="photoNote" placeholder="Optional hint: “large oat latte”, “ate half”…" style="margin-top:10px">
+      <div class="row"><button class="btn" id="analyzePhoto" disabled>Count calories</button></div>
+      <div class="err" id="photoErr"></div>
+    </div>
+
+    <div class="pane" id="pane-describe">
+      <textarea id="descIn" placeholder="e.g. a can of Coke, 2 Snickers and a handful of gummy bears"></textarea>
+      <div class="row"><button class="btn" id="analyzeText">Estimate calories</button></div>
+      <div class="err" id="textErr"></div>
+    </div>
+
+    <div class="result" id="result">
+      <div class="note" id="resultNote"></div>
+      <div id="resultItems"></div>
+      <div class="rtotal"><span>Total</span><span id="resultTotal">0 kcal</span></div>
+      <div class="row">
+        <button class="btn ghost" id="discard">Discard</button>
+        <button class="btn" id="saveResult">Add to log</button>
+      </div>
+      <div class="hint">These are estimates — fix any name or number before saving.</div>
+    </div>
+
+    <div class="pane" id="pane-quick">
+      <div class="catpick" id="quickCats"></div>
+      <div class="qgrid" id="quickGrid"></div>
+      <div class="hint">Typical values for a standard portion. Tap to add.</div>
+    </div>
+
+    <div class="pane" id="pane-manual">
+      <input type="text" id="manName" placeholder="What did you have?">
+      <div class="row"><input type="number" id="manKcal" placeholder="kcal" min="0" inputmode="numeric"></div>
+      <div class="catpick" id="manCats"></div>
+      <div class="row"><button class="btn" id="manAdd">Add</button></div>
+    </div>
+  </section>
+
+  <section class="card log">
+    <h2><span id="logTitle">Today's log</span><small id="logCount"></small></h2>
+    <div id="logList"></div>
+  </section>
+</div>
+
+<!-- SETTINGS -->
+<div class="sheet" id="settings">
+  <div class="card">
+    <h3>Settings <button class="iconbtn" id="closeSettings" aria-label="Close">✕</button></h3>
+
+    <div class="field">
+      <label for="goalIn">Daily calorie goal</label>
+      <input type="number" id="goalIn" min="500" max="10000" inputmode="numeric">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label for="keyIn">Anthropic API key</label>
+      <input type="password" id="keyIn" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint">Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It's saved only on this phone and only sent to Anthropic. Never share it.</div>
+    </div>
+    <div class="field">
+      <label for="modelIn">AI model</label>
+      <select id="modelIn">
+        <option value="claude-sonnet-5-5">Sonnet 5.5 — more accurate (~½ cent/photo)</option>
+        <option value="claude-haiku-5-5">Haiku 5.5 — cheapest (fraction of a cent)</option>
+      </select>
+    </div>
+    <button class="btn ghost" id="testKey">Test key</button>
+    <div id="keyMsg"></div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>Backup</label>
+      <div class="hint" style="margin-top:0;margin-bottom:8px">Your log lives on this phone. Copy a backup now and then (e.g. into Notes) so you never lose it.</div>
+      <div class="row" style="margin-top:0">
+        <button class="btn ghost" id="copyBackup">Copy backup</button>
+        <button class="btn ghost" id="showRestore">Restore</button>
+      </div>
+      <div id="restoreBox" style="display:none;margin-top:10px">
+        <textarea id="restoreIn" placeholder="Paste your backup here"></textarea>
+        <button class="btn" id="doRestore" style="margin-top:8px">Restore from backup</button>
+      </div>
+      <div id="backupMsg"></div>
+    </div>
+
+    <button class="btn" id="saveSettings" style="margin-top:6px">Save</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const CATS = {
+    meal:  {label:"Meal",  emoji:"🍽️", color:"var(--meal)"},
+    snack: {label:"Snack", emoji:"🥨", color:"var(--snack)"},
+    candy: {label:"Candy", emoji:"🍬", color:"var(--candy)"},
+    drink: {label:"Drink", emoji:"🥤", color:"var(--drink)"},
+  };
+  const QUICK = {
+    candy: [["Snickers bar (50g)",250],["Mars bar (51g)",230],["KitKat 4-finger",210],["Twix (2 bars)",250],["M&M's bag (45g)",230],["Haribo gummy bears (100g)",343],["Skittles bag (45g)",180],["Milk chocolate (100g)",535],["Dark chocolate (2 squares)",110],["Lollipop",60],["Marabou bar (100g)",540],["Lösgodis bag (200g)",750]],
+    drink: [["Coca-Cola can (330ml)",139],["Coke Zero / diet",1],["Red Bull (250ml)",112],["Monster (500ml)",230],["Orange juice (250ml)",112],["Latte (medium)",190],["Black coffee",2],["Cappuccino",110],["Beer (330ml)",145],["Glass of wine (150ml)",125],["Milk (250ml)",160],["Smoothie (400ml)",250],["Bubble tea (500ml)",350],["Water",0]],
+    snack: [["Banana",105],["Apple",95],["Chips handful (30g)",160],["Protein bar",200],["Granola bar",130],["Cookie",80],["Kanelbulle",280],["Nuts handful (30g)",180],["Greek yogurt cup",130],["Popcorn bowl",110]],
+    meal:  [["Slice of pizza",285],["Big Mac",550],["Medium fries",320],["Kebab wrap",700],["Pasta w/ sauce",450],["Chicken & rice plate",550],["Sandwich",350],["Cereal w/ milk",250],["Sushi (8 pcs)",350],["Salad w/ dressing",300]],
+  };
+
+  const $ = id => document.getElementById(id);
+  const LS = {
+    get(k, f){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; }catch{ return f; } },
+    set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch{ return false; } },
+  };
+
+  // ---------- state ----------
+  let goal   = LS.get("snapcal-goal", 2000);
+  let days   = LS.get("snapcal-days", {});
+  let apiKey = LS.get("snapcal-key", "");
+  let model  = LS.get("snapcal-model", "claude-sonnet-5-5");
+  let viewDate = todayKey();
+  let pending = null, photoB64 = null;
+
+  function save(){ LS.set("snapcal-days", days); }
+  function todayKey(d = new Date()){
+    const z = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+  }
+  function shiftKey(key, n){ const [y,m,d]=key.split("-").map(Number); return todayKey(new Date(y,m-1,d+n)); }
+  function prettyDay(key){
+    const t = todayKey();
+    if (key===t) return "Today";
+    if (key===shiftKey(t,-1)) return "Yesterday";
+    const [y,m,d]=key.split("-").map(Number);
+    return new Date(y,m-1,d).toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
+  }
+  const newId = () => Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+
+  // ---------- render ----------
+  function render(){
+    const list = days[viewDate] || [];
+    const total = list.reduce((s,e)=>s+(+e.kcal||0),0);
+    $("dayLabel").textContent = prettyDay(viewDate);
+    $("nextDay").disabled = viewDate >= todayKey();
+    $("totalBig").textContent = Math.round(total);
+    const left = goal - total;
+    $("leftText").innerHTML = left>=0
+      ? `<b>${Math.round(left)}</b> of ${goal} kcal left`
+      : `<b style="color:var(--danger)">${Math.round(-left)}</b> kcal over your ${goal}`;
+    const C = 333.0;
+    $("ringArc").style.strokeDashoffset = C*(1-Math.min(total/goal,1));
+    $("ringArc").style.stroke = left<0 ? "var(--danger)" : "var(--accent)";
+
+    const by = {meal:0,snack:0,candy:0,drink:0};
+    list.forEach(e=>{ by[e.category in by ? e.category : "meal"] += +e.kcal||0; });
+    $("catBar").innerHTML = total ? Object.keys(by).map(c=>by[c]?`<div style="width:${by[c]/total*100}%;background:${CATS[c].color}"></div>`:"").join("") : "";
+    $("legend").innerHTML = Object.keys(by).map(c=>`<span><i style="background:${CATS[c].color}"></i>${CATS[c].label} ${Math.round(by[c])}</span>`).join("");
+
+    $("logTitle").textContent = viewDate===todayKey() ? "Today's log" : prettyDay(viewDate);
+    $("logCount").textContent = list.length ? `${list.length} item${list.length>1?"s":""}` : "";
+    const ll = $("logList"); ll.innerHTML = "";
+    if (!list.length){ ll.innerHTML = `<div class="empty">Nothing logged yet. Snap something!</div>`; }
+    [...list].sort((a,b)=>b.t-a.t).forEach(e=>{
+      const c = CATS[e.category]||CATS.meal;
+      const row = document.createElement("div"); row.className="entry";
+      row.innerHTML = `<div class="dot" style="background:color-mix(in srgb, ${c.color} 18%, transparent)">${c.emoji}</div>
+        <div class="info"><div class="name"></div><div class="meta"></div></div>
+        <div class="kcal">${Math.round(e.kcal)} kcal</div><button class="del" aria-label="Remove">×</button>`;
+      row.querySelector(".name").textContent = e.name;
+      row.querySelector(".meta").textContent = `${c.label} · ${new Date(e.t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}${e.source?" · "+e.source:""}`;
+      row.querySelector(".del").onclick = ()=>{ days[viewDate] = (days[viewDate]||[]).filter(x=>x.id!==e.id); if(!days[viewDate].length) delete days[viewDate]; save(); render(); };
+      ll.appendChild(row);
+    });
+    $("keyBanner").style.display = apiKey ? "none" : "block";
+    $("analyzePhoto").disabled = !photoB64;
+  }
+
+  function addEntries(items, source){
+    const key = viewDate; days[key] = days[key] || [];
+    const now = Date.now();
+    items.forEach((it,i)=> days[key].push({
+      id:newId(), name:String(it.name||"Food").slice(0,80),
+      kcal:Math.max(0,Math.round(+it.kcal||0)),
+      category: CATS[it.category]?it.category:"meal", t: now+i, source}));
+    save(); render();
+  }
+
+  // ---------- tabs & nav ----------
+  document.querySelectorAll(".tabs button").forEach(b=> b.onclick = ()=>{
+    document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
+    document.querySelectorAll(".pane").forEach(p=>p.classList.toggle("on", p.id==="pane-"+b.dataset.tab));
+    $("result").style.display = (pending && ["photo","describe"].includes(b.dataset.tab)) ? "block" : "none";
+    if (b.dataset.tab !== "scan") stopScan();
+  });
+  $("prevDay").onclick = ()=>{ viewDate = shiftKey(viewDate,-1); render(); };
+  $("nextDay").onclick = ()=>{ if (viewDate<todayKey()){ viewDate = shiftKey(viewDate,1); render(); } };
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) render(); }); // day rolls over
+
+  // ---------- quick add ----------
+  let quickCat = "candy";
+  function renderQuick(){
+    $("quickCats").innerHTML = "";
+    ["candy","drink","snack","meal"].forEach(c=>{
+      const b=document.createElement("button"); b.className="chip"+(c===quickCat?" on":"");
+      b.textContent=CATS[c].emoji+" "+CATS[c].label; b.onclick=()=>{quickCat=c;renderQuick();};
+      $("quickCats").appendChild(b);
+    });
+    $("quickGrid").innerHTML="";
+    QUICK[quickCat].forEach(([n,k])=>{
+      const b=document.createElement("button"); b.className="qbtn";
+      b.innerHTML=`<span></span><b>${k} kcal</b>`; b.querySelector("span").textContent=n;
+      b.onclick=()=>{ addEntries([{name:n,kcal:k,category:quickCat}],"quick add"); b.classList.add("flash"); setTimeout(()=>b.classList.remove("flash"),450); };
+      $("quickGrid").appendChild(b);
+    });
+  }
+
+  // ---------- manual ----------
+  let manCat = "meal";
+  function renderManCats(){
+    $("manCats").innerHTML="";
+    Object.keys(CATS).forEach(c=>{
+      const b=document.createElement("button"); b.className="chip"+(c===manCat?" on":"");
+      b.textContent=CATS[c].emoji+" "+CATS[c].label; b.onclick=()=>{manCat=c;renderManCats();};
+      $("manCats").appendChild(b);
+    });
+  }
+  $("manAdd").onclick = ()=>{
+    const n=$("manName").value.trim(), raw=$("manKcal").value, k=+raw;
+    if (!n || raw==="" || !(k>=0)) return;
+    addEntries([{name:n,kcal:k,category:manCat}],"manual");
+    $("manName").value=""; $("manKcal").value="";
+  };
+
+  // ---------- photo ----------
+  $("fileIn").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $("photoErr").textContent="";
+    try{
+      const dataUrl = await shrink(f, 1024);
+      $("preview").src = dataUrl; $("preview").style.display="block";
+      photoB64 = dataUrl.split(",")[1];
+      render();
+    }catch{ $("photoErr").textContent="Couldn't read that image. Try another one."; }
+  };
+  function shrink(file, max){
+    return new Promise((res,rej)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        const s = Math.min(1, max/Math.max(img.width,img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); rej(); };
+      img.src = url;
+    });
+  }
+
+  // ---------- AI ----------
+  const PROMPT = `You are a nutrition estimator for a calorie-tracking app. Identify every food, snack, candy and drink and estimate calories (kcal) for the visible/described portion. Be realistic about portion sizes. If a brand is recognisable (e.g. Coca-Cola, Snickers, Red Bull, Marabou), use its real nutrition values for the size shown. Drinks count too (soda, juice, coffee drinks, alcohol, energy drinks).
+Category must be one of: "meal", "snack", "candy", "drink".
+Reply with ONLY a JSON object, no markdown, in exactly this shape:
+{"items":[{"name":"short name with portion, e.g. 'Coca-Cola can (330 ml)'","kcal":139,"category":"drink"}],"note":"one short sentence on assumptions or confidence"}
+If there is no food or drink at all, reply {"items":[],"note":"No food or drink found."}`;
+
+  async function callClaude(content, maxTokens = 800){
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content }] }),
+    });
+    let data = null; try{ data = await res.json(); }catch{}
+    if (!res.ok){
+      const msg = (data && data.error && data.error.message) || "";
+      const err = new Error(msg); err.status = res.status; throw err;
+    }
+    return (data.content || []).filter(b=>b.type==="text").map(b=>b.text).join("");
+  }
+
+  function friendlyError(e){
+    if (!navigator.onLine) return "You're offline. Connect to the internet, or use Quick add / Manual.";
+    const m = (e && e.message || "").toLowerCase();
+    if (e.status === 401) return "Your API key isn't valid. Check it in ⚙️ Settings.";
+    if (m.includes("credit")) return "Your API account is out of credit. Top up at console.anthropic.com.";
+    if (e.status === 404 || m.includes("model")) return "That AI model isn't available on your account — try the other one in ⚙️ Settings.";
+    if (e.status === 429) return "Too many requests — wait a moment and try again.";
+    if (e.status === 529 || e.status >= 500) return "The AI is busy right now. Try again in a minute.";
+    return "Couldn't get an estimate" + (e.message ? `: ${e.message}` : ".");
+  }
+
+  function parseJSON(text){
+    const m = text.match(/\{[\s\S]*\}/); if(!m) throw new Error("The AI gave an odd answer — try again.");
+    const o = JSON.parse(m[0]); if(!Array.isArray(o.items)) throw new Error("The AI gave an odd answer — try again.");
+    return o;
+  }
+
+  async function runAI(content, btn, errEl, source){
+    errEl.textContent = "";
+    if (!apiKey){ errEl.textContent = "Add your API key in ⚙️ Settings first."; return; }
+    const label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Thinking…`;
+    try{
+      const o = parseJSON(await callClaude(content));
+      if (!o.items.length){ errEl.textContent = o.note || "Couldn't find any food or drink."; return; }
+      pending = { items:o.items.map(i=>({name:String(i.name||"Food"), kcal:Math.round(+i.kcal||0), category:CATS[i.category]?i.category:"meal"})), source };
+      $("resultNote").textContent = o.note || "Here's my estimate.";
+      showResult();
+    }catch(e){ errEl.textContent = e.status ? friendlyError(e) : (e.message || friendlyError(e)); }
+    finally{ btn.disabled = false; btn.innerHTML = label; render(); }
+  }
+
+  $("analyzePhoto").onclick = ()=>{
+    if (!photoB64) return;
+    const hint = $("photoNote").value.trim();
+    runAI([
+      { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:photoB64 } },
+      { type:"text", text: PROMPT + (hint ? `\nUser's hint about the photo: ${hint}` : "") + "\nEstimate the calories in this photo." },
+    ], $("analyzePhoto"), $("photoErr"), "photo");
+  };
+  $("analyzeText").onclick = ()=>{
+    const t = $("descIn").value.trim(); if (!t) return;
+    runAI([{ type:"text", text: PROMPT + "\nThe user ate/drank: " + t }], $("analyzeText"), $("textErr"), "typed");
+  };
+
+  function showResult(){
+    const box = $("resultItems"); box.innerHTML = "";
+    pending.items.forEach((it,idx)=>{
+      const r = document.createElement("div"); r.className="ritem";
+      r.innerHTML = `<input type="text"><input type="number" min="0" inputmode="numeric"><button class="x" aria-label="Remove">×</button><div class="sub"></div>`;
+      const [n,k] = r.querySelectorAll("input");
+      n.value = it.name; k.value = it.kcal;
+      const c = CATS[it.category]||CATS.meal;
+      r.querySelector(".sub").textContent = c.emoji+" "+c.label;
+      n.oninput = ()=>{ it.name = n.value; };
+      k.oninput = ()=>{ it.kcal = +k.value||0; updTotal(); };
+      r.querySelector(".x").onclick = ()=>{ pending.items.splice(idx,1); pending.items.length ? showResult() : hideResult(); };
+      box.appendChild(r);
+    });
+    updTotal(); $("result").style.display = "block";
+  }
+  function updTotal(){ $("resultTotal").textContent = pending.items.reduce((s,i)=>s+(+i.kcal||0),0)+" kcal"; }
+  function hideResult(){ pending = null; $("result").style.display = "none"; }
+  $("discard").onclick = hideResult;
+  $("saveResult").onclick = ()=>{
+    if (!pending) return;
+    addEntries(pending.items, pending.source);
+    hideResult();
+    photoB64 = null; $("preview").style.display="none"; $("preview").removeAttribute("src");
+    $("photoNote").value=""; $("descIn").value=""; $("fileIn").value="";
+    render();
+    window.scrollTo({top:0, behavior:"smooth"});
+  };
+
+  // ---------- barcode scanner ----------
+  const ZXING_URL = "https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js";
+  let zxingPromise = null, reader = null, scanning = false, product = null;
+  let productCache = LS.get("snapcal-products", {});   // barcode -> product info
+  let recentCodes  = LS.get("snapcal-recent", []);
+
+  function loadZXing(){
+    if (window.ZXing) return Promise.resolve(window.ZXing);
+    if (!zxingPromise) zxingPromise = new Promise((res, rej)=>{
+      const s = document.createElement("script");
+      s.src = ZXING_URL; s.onload = ()=> window.ZXing ? res(window.ZXing) : rej();
+      s.onerror = ()=>{ zxingPromise = null; rej(); };
+      document.head.appendChild(s);
+    });
+    return zxingPromise;
+  }
+  function makeReader(Z, tryHarder){
+    const hints = new Map();
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]);
+    if (tryHarder) hints.set(Z.DecodeHintType.TRY_HARDER, true);
+    return new Z.BrowserMultiFormatReader(hints, 250);
+  }
+
+  async function startScan(){
+    $("scanErr").textContent = ""; $("scanStatus").textContent = "Starting camera…";
+    try{
+      const Z = await loadZXing();
+      stopScan();
+      reader = makeReader(Z, false);
+      $("scanBox").style.display = "block"; $("startScan").style.display = "none";
+      scanning = true;
+      await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+        $("scanVideo"),
+        (result) => { if (result && scanning){ const code = result.getText(); stopScan(); lookup(code); } }
+      );
+      $("scanStatus").textContent = "Point at the barcode — hold it steady inside the box.";
+    }catch(e){
+      stopScan();
+      const name = e && e.name;
+      $("scanErr").textContent =
+        name === "NotAllowedError" ? "Camera access was blocked. Allow it in iPhone Settings → Safari → Camera, or take a photo of the barcode instead." :
+        name === "NotFoundError"   ? "No camera found. Type the barcode number or take a photo of it instead." :
+        !navigator.onLine          ? "You're offline — the scanner needs internet the first time." :
+                                     "Couldn't start the camera. Try a photo of the barcode instead.";
+    }
+  }
+  function stopScan(){
+    scanning = false;
+    try{ reader && reader.reset(); }catch{}
+    const v = $("scanVideo");
+    if (v.srcObject){ try{ v.srcObject.getTracks().forEach(t=>t.stop()); }catch{} v.srcObject = null; }
+    $("scanBox").style.display = "none"; $("startScan").style.display = "";
+    $("scanStatus").textContent = "";
+  }
+  $("startScan").onclick = startScan;
+  $("stopScan").onclick = stopScan;
+  document.addEventListener("visibilitychange", ()=>{ if (document.hidden) stopScan(); });
+
+  $("barcodeImg").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    $("scanErr").textContent = ""; $("scanStatus").textContent = "Reading barcode…";
+    try{
+      const Z = await loadZXing();
+      const url = URL.createObjectURL(f);
+      try{
+        const r = await makeReader(Z, true).decodeFromImageUrl(url);
+        lookup(r.getText());
+      } finally { URL.revokeObjectURL(url); }
+    }catch{
+      $("scanStatus").textContent = "";
+      $("scanErr").textContent = "Couldn't find a barcode in that photo. Get closer, keep it sharp and straight, or type the number.";
+    }
+  };
+  $("lookupCode").onclick = ()=>{ const c = $("codeIn").value.replace(/\D/g,""); if (c) lookup(c); };
+  $("codeIn").addEventListener("keydown", e=>{ if (e.key==="Enter") $("lookupCode").click(); });
+
+  function guessCategory(tags){
+    const t = (tags||[]).join(" ");
+    if (/beverage|drink|soda|juice|water|coffee|tea|beer|wine|milk/.test(t)) return "drink";
+    if (/confection|candi|candy|chocolate|sweet|bonbon|gumm|lollipop|licorice|liquorice/.test(t)) return "candy";
+    if (/snack|chip|crisp|biscuit|cookie|bar/.test(t)) return "snack";
+    return "meal";
+  }
+
+  async function lookup(code){
+    code = String(code).replace(/\D/g,"");
+    $("codeIn").value = code; $("scanErr").textContent = "";
+    $("product").style.display = "none";
+    let info = productCache[code];
+    if (!info){
+      $("scanStatus").textContent = `Looking up ${code}…`;
+      try{
+        const fields = "product_name,product_name_sv,product_name_en,brands,quantity,product_quantity,serving_size,serving_quantity,categories_tags,nutriments";
+        const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${fields}`);
+        const data = await res.json().catch(()=>null);
+        if (!data || data.status !== 1 || !data.product){
+          $("scanStatus").textContent = "";
+          $("scanErr").textContent = `Product ${code} isn't in the food database yet. Try a photo of the food or the nutrition label instead.`;
+          return;
+        }
+        const p = data.product, n = p.nutriments || {};
+        let k100 = +n["energy-kcal_100g"];
+        if (!(k100 >= 0) || n["energy-kcal_100g"] === undefined){
+          const kj = +(n["energy-kj_100g"] ?? n["energy_100g"]);
+          k100 = kj >= 0 ? kj / 4.184 : NaN;
+        }
+        const kServ = n["energy-kcal_serving"] !== undefined ? +n["energy-kcal_serving"] : NaN;
+        const q = String(p.quantity || "");
+        info = {
+          code,
+          name: (p.product_name || p.product_name_sv || p.product_name_en || "Unknown product").trim(),
+          brand: String(p.brands || "").split(",")[0].trim(),
+          k100: isNaN(k100) ? null : Math.round(k100*10)/10,
+          kServ: isNaN(kServ) ? null : Math.round(kServ),
+          servQty: +p.serving_quantity || null,
+          servLabel: p.serving_size || "",
+          packQty: +p.product_quantity || null,
+          packLabel: q,
+          unit: /\d\s*(ml|cl|dl|l)\b/i.test(q) ? "ml" : "g",
+          category: guessCategory(p.categories_tags),
+        };
+        if (info.k100 === null && info.kServ === null){
+          $("scanStatus").textContent = "";
+          $("scanErr").textContent = `Found “${info.name}”, but it has no calorie info. Snap the nutrition label in the Photo tab instead.`;
+          return;
+        }
+        productCache[code] = info; LS.set("snapcal-products", productCache);
+      }catch{
+        $("scanStatus").textContent = "";
+        $("scanErr").textContent = navigator.onLine ? "Couldn't reach the food database. Try again in a moment." : "You're offline — looking up barcodes needs internet.";
+        return;
+      }
+    }
+    $("scanStatus").textContent = "";
+    recentCodes = [code, ...recentCodes.filter(c=>c!==code)].slice(0,8); LS.set("snapcal-recent", recentCodes);
+    renderRecent();
+    showProduct(info);
+  }
+
+  let amount = null; // {kind, qty}
+  function showProduct(info){
+    product = info;
+    $("pName").textContent = info.name;
+    $("pBrand").textContent = [info.brand, info.packLabel].filter(Boolean).join(" · ");
+    $("pPer").textContent = info.k100 !== null ? `${Math.round(info.k100)} kcal per 100 ${info.unit}` : `${info.kServ} kcal per serving`;
+    const opts = [];
+    if (info.servQty || info.kServ !== null) opts.push({kind:"serving", label:`1 serving${info.servLabel?` (${info.servLabel})`:""}`});
+    if (info.packQty && info.k100 !== null) opts.push({kind:"pack", label:`Whole pack (${info.packQty} ${info.unit})`});
+    if (info.k100 !== null) { opts.push({kind:"100", label:`100 ${info.unit}`}); opts.push({kind:"custom", label:`Custom ${info.unit}`}); }
+    amount = opts.find(o=>o.kind==="pack") || opts[0];
+    const box = $("pAmounts"); box.innerHTML = "";
+    opts.forEach(o=>{
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = o.label;
+      b.onclick = ()=>{ amount = o; paintAmounts(); };
+      o.el = b; box.appendChild(b);
+    });
+    $("pCustom").placeholder = `Amount in ${info.unit}`; $("pCustom").value = "";
+    renderProdCats(); paintAmounts();
+    $("product").style.display = "block";
+    $("product").scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+  function paintAmounts(){
+    [...$("pAmounts").children].forEach(b=> b.classList.toggle("on", b.textContent === amount.label));
+    $("pCustomRow").style.display = amount.kind === "custom" ? "flex" : "none";
+    $("pKcal").textContent = productKcal() + " kcal";
+  }
+  function productKcal(){
+    const p = product; if (!p || !amount) return 0;
+    if (amount.kind === "serving") return p.kServ !== null ? p.kServ : Math.round(p.k100 * p.servQty / 100);
+    if (amount.kind === "pack")    return Math.round(p.k100 * p.packQty / 100);
+    if (amount.kind === "100")     return Math.round(p.k100);
+    return Math.round(p.k100 * (+$("pCustom").value || 0) / 100);
+  }
+  function amountText(){
+    const p = product;
+    if (amount.kind === "serving") return p.servLabel || "1 serving";
+    if (amount.kind === "pack")    return `${p.packQty} ${p.unit}`;
+    if (amount.kind === "100")     return `100 ${p.unit}`;
+    return `${+$("pCustom").value || 0} ${p.unit}`;
+  }
+  $("pCustom").oninput = ()=>{ $("pKcal").textContent = productKcal() + " kcal"; };
+  function renderProdCats(){
+    $("pCats").innerHTML = "";
+    Object.keys(CATS).forEach(c=>{
+      const b = document.createElement("button"); b.className = "chip" + (c===product.category?" on":"");
+      b.textContent = CATS[c].emoji+" "+CATS[c].label;
+      b.onclick = ()=>{ product.category = c; renderProdCats(); };
+      $("pCats").appendChild(b);
+    });
+  }
+  $("pAdd").onclick = ()=>{
+    if (!product) return;
+    if (amount.kind === "custom" && !(+$("pCustom").value > 0)) { $("pCustom").focus(); return; }
+    const name = `${product.brand && !product.name.toLowerCase().includes(product.brand.toLowerCase()) ? product.brand+" " : ""}${product.name} (${amountText()})`;
+    addEntries([{ name, kcal: productKcal(), category: product.category }], "barcode");
+    $("product").style.display = "none"; product = null;
+    $("scanStatus").textContent = "✓ Added to your log!";
+    setTimeout(()=>{ if ($("scanStatus").textContent.startsWith("✓")) $("scanStatus").textContent = ""; }, 2500);
+    window.scrollTo({top:0, behavior:"smooth"});
+  };
+  function renderRecent(){
+    const box = $("recent"); box.innerHTML = "";
+    const items = recentCodes.map(c=>productCache[c]).filter(Boolean);
+    $("recentWrap").style.display = items.length ? "block" : "none";
+    items.forEach(p=>{
+      const b = document.createElement("button"); b.className = "chip";
+      b.textContent = p.name.length > 26 ? p.name.slice(0,25)+"…" : p.name;
+      b.onclick = ()=>{ $("codeIn").value = p.code; showProduct(p); };
+      box.appendChild(b);
+    });
+  }
+  renderRecent();
+
+  // ---------- settings ----------
+  function openSettings(){
+    $("goalIn").value = goal; $("keyIn").value = apiKey; $("modelIn").value = model;
+    $("keyMsg").innerHTML = ""; $("backupMsg").innerHTML = ""; $("restoreBox").style.display="none";
+    $("settings").classList.add("on");
+  }
+  function closeSettings(){ $("settings").classList.remove("on"); }
+  $("openSettings").onclick = openSettings;
+  $("bannerSettings").onclick = openSettings;
+  $("closeSettings").onclick = closeSettings;
+  $("settings").addEventListener("click", e=>{ if (e.target.id==="settings") closeSettings(); });
+  $("saveSettings").onclick = ()=>{
+    const g = Math.round(+$("goalIn").value);
+    if (g>=500 && g<=10000){ goal = g; LS.set("snapcal-goal", goal); }
+    apiKey = $("keyIn").value.trim(); LS.set("snapcal-key", apiKey);
+    model = $("modelIn").value; LS.set("snapcal-model", model);
+    closeSettings(); render();
+  };
+  $("testKey").onclick = async ()=>{
+    const prevKey = apiKey, prevModel = model;
+    apiKey = $("keyIn").value.trim(); model = $("modelIn").value;
+    const msg = $("keyMsg");
+    if (!apiKey){ msg.innerHTML = `<div class="err">Paste your key first.</div>`; apiKey = prevKey; model = prevModel; return; }
+    msg.innerHTML = `<div class="hint">Testing…</div>`;
+    try{ await callClaude([{type:"text", text:"Reply with just: ok"}], 5); msg.innerHTML = `<div class="ok">✓ Key works! Hit Save.</div>`; }
+    catch(e){ msg.innerHTML = `<div class="err"></div>`; msg.firstChild.textContent = friendlyError(e); }
+    finally{ apiKey = prevKey; model = prevModel; }
+  };
+  $("copyBackup").onclick = async ()=>{
+    const text = JSON.stringify({app:"snapcal", v:1, goal, days});
+    try{ await navigator.clipboard.writeText(text); $("backupMsg").innerHTML = `<div class="ok">✓ Copied! Paste it into Notes to keep it safe.</div>`; }
+    catch{ $("backupMsg").innerHTML = `<div class="err">Couldn't copy automatically.</div>`; }
+  };
+  $("showRestore").onclick = ()=>{ $("restoreBox").style.display = "block"; };
+  $("doRestore").onclick = ()=>{
+    try{
+      const o = JSON.parse($("restoreIn").value);
+      if (o.app!=="snapcal" || typeof o.days!=="object") throw 0;
+      days = o.days; save();
+      if (+o.goal) { goal = +o.goal; LS.set("snapcal-goal", goal); $("goalIn").value = goal; }
+      $("backupMsg").innerHTML = `<div class="ok">✓ Restored!</div>`; render();
+    }catch{ $("backupMsg").innerHTML = `<div class="err">That doesn't look like a Snap Calories backup.</div>`; }
+  };
+
+  // ---------- boot ----------
+  renderQuick(); renderManCats(); render();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+})();
+</script>
+</body>
+</html>
